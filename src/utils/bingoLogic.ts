@@ -1,12 +1,34 @@
 import { BingoCell, GridSize, WinResult, SubmissionData, BingoGameMode } from '../types';
 
 /**
- * English Alphabet letters pool A-Z
+ * English Alphabet letters pool A-Z (strictly single uppercase letters)
  */
-export const ALPHABET_POOL = [
+export const ALPHABET_POOL: string[] = [
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
   'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
 ];
+
+/**
+ * Validate that cells strictly adhere to single letters A-Z or numbers 1-100
+ */
+export function validateAndSanitizeCells(
+  cells: BingoCell[],
+  gameMode: BingoGameMode
+): boolean {
+  if (!Array.isArray(cells) || cells.length !== 16) return false;
+
+  return cells.every((c) => {
+    if (!c || c.value === undefined || c.value === null) return false;
+    if (gameMode === 'letters') {
+      const valStr = String(c.value).trim().toUpperCase();
+      // Strict check: MUST be exactly 1 uppercase English letter A-Z
+      return valStr.length === 1 && /^[A-Z]$/.test(valStr);
+    } else {
+      const numVal = Number(c.value);
+      return typeof c.value === 'number' && !isNaN(numVal) && numVal >= 1 && numVal <= 100;
+    }
+  });
+}
 
 /**
  * Seeded PRNG (Mulberry32) for deterministic card generation
@@ -19,7 +41,6 @@ function mulberry32(seed: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  // Warm up PRNG to thoroughly mix state
   for (let i = 0; i < 20; i++) {
     rand();
   }
@@ -27,16 +48,16 @@ function mulberry32(seed: number) {
 }
 
 function hashString(str: string): number {
-  let hash = 0x811c9dc5; // FNV-1a 32-bit initial offset basis
+  let hash = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
     hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193); // FNV prime
+    hash = Math.imul(hash, 0x01000193);
   }
   return Math.abs(hash);
 }
 
 /**
- * Generate unique random numbers (1-100) or letters (A-Z) for gridSize x gridSize table
+ * Generate unique random numbers (1-100) or single letters (A-Z) for gridSize x gridSize table
  */
 export function generateBoardCells(
   gridSize: GridSize = 4,
@@ -74,9 +95,15 @@ export function generateBoardCells(
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
+      const rawVal = selectedItems[itemIdx];
+      // Ensure single letter format if letters mode
+      const finalVal = gameMode === 'letters'
+        ? String(rawVal).toUpperCase().trim().slice(0, 1)
+        : Number(rawVal);
+
       cells.push({
         id: `cell-${row}-${col}`,
-        value: selectedItems[itemIdx],
+        value: finalVal,
         isMarked: false,
         isFree: false,
         row,
@@ -216,7 +243,7 @@ export function generateProofCode(
 ): string {
   const markedVals = cells
     .filter((c) => c.isMarked)
-    .map((c) => String(c.value))
+    .map((c) => String(c.value).toUpperCase().slice(0, 1))
     .sort()
     .join('-');
 
@@ -250,8 +277,8 @@ export function playSound(type: 'daub' | 'unmarked' | 'win' | 'draw' | 'error') 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
       gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
       osc.connect(gain);
@@ -325,7 +352,7 @@ export function speakCallItem(item: number | string) {
     window.speechSynthesis.cancel();
     let text = '';
     if (typeof item === 'string') {
-      text = `Letter ${item}`;
+      text = `Letter ${item.toUpperCase().slice(0, 1)}`;
     } else {
       text = `Number ${item}`;
     }

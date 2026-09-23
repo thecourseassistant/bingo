@@ -10,7 +10,7 @@ import { VerifierModal } from './components/VerifierModal';
 import { GitHubPagesModal } from './components/GitHubPagesModal';
 
 import { BoardConfig, BingoCell, WinResult, BingoGameMode } from './types';
-import { generateBoardCells } from './utils/bingoLogic';
+import { generateBoardCells, validateAndSanitizeCells } from './utils/bingoLogic';
 import { safeLocalStorage } from './utils/storage';
 
 export default function App() {
@@ -111,7 +111,7 @@ export default function App() {
     if (savedCells && savedMode === gameMode) {
       try {
         const parsed = JSON.parse(savedCells);
-        if (Array.isArray(parsed) && parsed.length === 16) {
+        if (validateAndSanitizeCells(parsed, gameMode)) {
           return parsed;
         }
       } catch (e) {

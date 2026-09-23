@@ -188,7 +188,9 @@ export const StudentCard: React.FC<StudentCardProps> = ({
                 `}
               >
                 <span className={`leading-none font-extrabold ${cell.isMarked ? 'drop-shadow-md' : ''}`}>
-                  {cell.value}
+                  {config.gameMode === 'letters'
+                    ? String(cell.value).toUpperCase().trim().slice(0, 1)
+                    : cell.value}
                 </span>
 
                 {cell.isMarked && (
