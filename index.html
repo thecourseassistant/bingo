@@ -9,13 +9,32 @@
     <meta property="og:description" content="Mobile-friendly interactive Bingo game with customizable 1-100 boards, caller generator, celebratory animations, and Google Sheets verification." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Ensure trailing slash on GitHub Pages repository subpaths so relative assets (./assets) load correctly
+      (function() {
+        var path = window.location.pathname;
+        if (path.length > 1 && !path.endsWith('/') && !path.split('/').pop().includes('.')) {
+          window.location.replace(window.location.protocol + '//' + window.location.host + path + '/' + window.location.search + window.location.hash);
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-slate-900 text-slate-100 antialiased font-sans select-none">
-    <div id="root"></div>
+  <body class="bg-slate-950 text-slate-100 antialiased font-sans select-none">
+    <div id="root">
+      <div style="min-height: 100vh; background-color: #020617; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; display: flex; align-items: center; justify-content: center; text-align: center; padding: 1.5rem;">
+        <div style="max-width: 440px; width: 100%; background-color: #0f172a; padding: 2rem; border-radius: 1.5rem; border: 1px solid #1e293b; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);">
+          <div style="width: 48px; height: 48px; margin: 0 auto 1rem; border-radius: 50%; border: 3px solid #6366f1; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+          <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+          <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: #ffffff;">Loading Classroom Bingo...</h2>
+          <p style="font-size: 0.85rem; color: #94a3b8; margin: 0; line-height: 1.5;">
+            Connecting app components. If this stays visible, verify your GitHub Pages Source is set to <strong>GitHub Actions</strong> in repository settings.
+          </p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
