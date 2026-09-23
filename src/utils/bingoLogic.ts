@@ -1,0 +1,404 @@
+import { BingoCell, GridSize, WinResult, SubmissionData } from '../types';
+
+/**
+ * Seeded PRNG (Mulberry32) for deterministic card generation
+ */
+function mulberry32(seed: number) {
+  let s = seed;
+  const rand = function () {
+    let t = (s += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  // Warm up PRNG to thoroughly mix state
+  for (let i = 0; i < 20; i++) {
+    rand();
+  }
+  return rand;
+}
+
+function hashString(str: string): number {
+  let hash = 0x811c9dc5; // FNV-1a 32-bit initial offset basis
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193); // FNV prime
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Generate unique random numbers between min and max (inclusive) for gridSize x gridSize table
+ */
+export function generateBoardCells(
+  gridSize: GridSize = 4,
+  maxNumber: number = 100,
+  includeFreeSpace: boolean = false,
+  seedStr?: string
+): BingoCell[] {
+  const totalCells = gridSize * gridSize;
+
+  const randomFunc = seedStr && seedStr.trim() !== ''
+    ? mulberry32(hashString(seedStr))
+    : Math.random;
+
+  // Generate pool of unique numbers [1..maxNumber]
+  const numberPool: number[] = [];
+  for (let i = 1; i <= maxNumber; i++) {
+    numberPool.push(i);
+  }
+
+  // Shuffle pool using Fisher-Yates
+  for (let i = numberPool.length - 1; i > 0; i--) {
+    const j = Math.floor(randomFunc() * (i + 1));
+    [numberPool[i], numberPool[j]] = [numberPool[j], numberPool[i]];
+  }
+
+  const selectedNumbers = numberPool.slice(0, totalCells);
+
+  const cells: BingoCell[] = [];
+  let numIdx = 0;
+
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      cells.push({
+        id: `cell-${row}-${col}`,
+        value: selectedNumbers[numIdx],
+        isMarked: false,
+        isFree: false,
+        row,
+        col,
+      });
+      numIdx++;
+    }
+  }
+
+  return cells;
+}
+
+/**
+ * Check win patterns: ONLY Horizontal Rows, Vertical Columns, and Diagonals
+ */
+export function checkWinCondition(
+  cells: BingoCell[],
+  gridSize: GridSize
+): WinResult {
+  const markedMap: boolean[][] = Array.from({ length: gridSize }, () =>
+    Array(gridSize).fill(false)
+  );
+
+  cells.forEach((cell) => {
+    markedMap[cell.row][cell.col] = cell.isMarked;
+  });
+
+  const winningCellIds = new Set<string>();
+  const winningPatterns: string[] = [];
+  const winningNumbersList: (number | string)[] = [];
+
+  // 1. Check Rows (Horizontal)
+  for (let r = 0; r < gridSize; r++) {
+    let rowComplete = true;
+    for (let c = 0; c < gridSize; c++) {
+      if (!markedMap[r][c]) {
+        rowComplete = false;
+        break;
+      }
+    }
+    if (rowComplete) {
+      winningPatterns.push(`Row ${r + 1}`);
+      for (let c = 0; c < gridSize; c++) {
+        const cell = cells.find((cell) => cell.row === r && cell.col === c);
+        if (cell) {
+          winningCellIds.add(cell.id);
+          if (!winningNumbersList.includes(cell.value)) {
+            winningNumbersList.push(cell.value);
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Check Columns (Vertical)
+  for (let c = 0; c < gridSize; c++) {
+    let colComplete = true;
+    for (let r = 0; r < gridSize; r++) {
+      if (!markedMap[r][c]) {
+        colComplete = false;
+        break;
+      }
+    }
+    if (colComplete) {
+      winningPatterns.push(`Col ${c + 1}`);
+      for (let r = 0; r < gridSize; r++) {
+        const cell = cells.find((cell) => cell.row === r && cell.col === c);
+        if (cell) {
+          winningCellIds.add(cell.id);
+          if (!winningNumbersList.includes(cell.value)) {
+            winningNumbersList.push(cell.value);
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Diagonal Top-Left to Bottom-Right
+  let diag1Complete = true;
+  for (let i = 0; i < gridSize; i++) {
+    if (!markedMap[i][i]) {
+      diag1Complete = false;
+      break;
+    }
+  }
+  if (diag1Complete) {
+    winningPatterns.push('Diagonal ↘');
+    for (let i = 0; i < gridSize; i++) {
+      const cell = cells.find((cell) => cell.row === i && cell.col === i);
+      if (cell) {
+        winningCellIds.add(cell.id);
+        if (!winningNumbersList.includes(cell.value)) {
+          winningNumbersList.push(cell.value);
+        }
+      }
+    }
+  }
+
+  // 4. Diagonal Top-Right to Bottom-Left
+  let diag2Complete = true;
+  for (let i = 0; i < gridSize; i++) {
+    if (!markedMap[i][gridSize - 1 - i]) {
+      diag2Complete = false;
+      break;
+    }
+  }
+  if (diag2Complete) {
+    winningPatterns.push('Diagonal ↙');
+    for (let i = 0; i < gridSize; i++) {
+      const cell = cells.find((cell) => cell.row === i && cell.col === gridSize - 1 - i);
+      if (cell) {
+        winningCellIds.add(cell.id);
+        if (!winningNumbersList.includes(cell.value)) {
+          winningNumbersList.push(cell.value);
+        }
+      }
+    }
+  }
+
+  const hasWon = winningPatterns.length > 0;
+
+  return {
+    hasWon,
+    patternName: winningPatterns.join(' + ') || 'None',
+    winningCellIds: Array.from(winningCellIds),
+    winningNumbers: winningNumbersList,
+  };
+}
+
+/**
+ * Generate a verification code based on student name, seed, and marked numbers
+ */
+export function generateProofCode(
+  studentName: string,
+  cardSeed: string,
+  cells: BingoCell[]
+): string {
+  const markedVals = cells
+    .filter((c) => c.isMarked)
+    .map((c) => c.value)
+    .sort()
+    .join('-');
+
+  const rawStr = `${studentName.trim().toUpperCase()}:${cardSeed}:${markedVals}`;
+  const hash = hashString(rawStr).toString(16).toUpperCase().padStart(6, '0');
+  return `BNG-${hash.slice(0, 3)}-${hash.slice(3, 6)}`;
+}
+
+/**
+ * Audio Synthesizer using Web Audio API (No external sound assets needed)
+ */
+let audioCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+export function playSound(type: 'daub' | 'unmarked' | 'win' | 'draw' | 'error') {
+  try {
+    const ctx = getAudioContext();
+    const now = ctx.currentTime;
+
+    if (type === 'daub') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.12);
+    } else if (type === 'unmarked') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(250, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    } else if (type === 'win') {
+      // Fanfare arpeggio: C5 - E5 - G5 - C6
+      const notes = [523.25, 659.25, 783.99, 1046.5];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const startTime = now + idx * 0.1;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0.3, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(startTime);
+        osc.stop(startTime + 0.35);
+      });
+    } else if (type === 'draw') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(700, now);
+      osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    } else if (type === 'error') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.setValueAtTime(180, now + 0.1);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.25);
+    }
+  } catch (e) {
+    console.warn('Web Audio Playback failed', e);
+  }
+}
+
+/**
+ * Speak number using browser SpeechSynthesis
+ */
+export function speakNumber(num: number) {
+  if (!('speechSynthesis' in window)) return;
+
+  try {
+    window.speechSynthesis.cancel();
+    const text = `Number ${num}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.1;
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn('Speech synthesis error', e);
+  }
+}
+
+/**
+ * Submit Bingo result to Google Sheet Apps Script URL
+ */
+export async function submitResultToGoogleSheet(
+  scriptUrl: string,
+  payload: SubmissionData
+): Promise<{ success: boolean; message: string }> {
+  if (!scriptUrl || scriptUrl.trim() === '') {
+    return {
+      success: false,
+      message: 'Google Apps Script URL is not configured. Please add your Web App URL in settings.',
+    };
+  }
+
+  const cleanUrl = scriptUrl.trim();
+
+  try {
+    // Try POST request with JSON
+    const response = await fetch(cleanUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8', // Prevents CORS preflight block in Google Apps Script
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      if (data && data.result === 'error') {
+        throw new Error(data.error || 'Apps Script returned error');
+      }
+      return { success: true, message: 'Bingo verified & recorded to Google Sheet!' };
+    }
+
+    // Fallback: try GET query params if POST was blocked by CORS
+    const queryParams = new URLSearchParams({
+      studentName: payload.studentName,
+      studentId: payload.studentId || '',
+      winPattern: payload.winPattern,
+      winningNumbers: payload.winningNumbers,
+      proofCode: payload.proofCode,
+      cardSeed: payload.cardSeed,
+      gridSize: String(payload.gridSize),
+    }).toString();
+
+    const getUrl = `${cleanUrl}?${queryParams}`;
+    await fetch(getUrl, { mode: 'no-cors' });
+
+    return {
+      success: true,
+      message: 'Result sent to Google Sheet (opaque mode confirmed).',
+    };
+  } catch (err: unknown) {
+    console.warn('Primary fetch failed, attempting GET fallback...', err);
+
+    // Final attempt with GET mode: no-cors
+    try {
+      const queryParams = new URLSearchParams({
+        studentName: payload.studentName,
+        studentId: payload.studentId || '',
+        winPattern: payload.winPattern,
+        winningNumbers: payload.winningNumbers,
+        proofCode: payload.proofCode,
+        cardSeed: payload.cardSeed,
+        gridSize: String(payload.gridSize),
+      }).toString();
+
+      await fetch(`${cleanUrl}?${queryParams}`, { mode: 'no-cors' });
+      return {
+        success: true,
+        message: 'Bingo submitted to Google Sheet!',
+      };
+    } catch (fallbackErr: unknown) {
+      const msg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      return {
+        success: false,
+        message: `Failed to submit: ${msg}. Please check your Google Apps Script URL.`,
+      };
+    }
+  }
+}

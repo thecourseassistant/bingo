@@ -1,0 +1,6 @@
+{
+  "name": "Classroom Bingo",
+  "description": "Mobile-friendly interactive Bingo game with customizable 1-100 boards, caller generator, celebratory animations, and Google Sheets verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
