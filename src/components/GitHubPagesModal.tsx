@@ -64,10 +64,18 @@ export const GitHubPagesModal: React.FC<GitHubPagesModalProps> = ({ onClose }) =
               </li>
 
               <li className="space-y-1">
-                <span className="font-bold text-white">GitHub Actions / Pages Setup:</span>
-                <p>
-                  In your GitHub repo settings: Go to <strong>Settings</strong> → <strong>Pages</strong> → set Source to <strong>GitHub Actions</strong> or <strong>Deploy from branch (gh-pages)</strong>.
+                <span className="font-bold text-white">Fixing 404 Errors on GitHub Pages:</span>
+                <p className="text-slate-300">
+                  A 404 error usually happens for two reasons:
                 </p>
+                <ul className="list-disc pl-4 space-y-1 mt-1 text-slate-400">
+                  <li>
+                    <strong className="text-white">Base path issue (assets not loading):</strong> We have configured <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">base: './'</code> in <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">vite.config.ts</code> so your repository relative links load correctly.
+                  </li>
+                  <li>
+                    <strong className="text-white">GitHub Pages subfolder:</strong> If your repo is at <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">https://username.github.io/repository-name/</code>, ensure GitHub Pages is publishing the contents of the built <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">dist/</code> directory (not the project root).
+                  </li>
+                </ul>
               </li>
             </ol>
           </div>
