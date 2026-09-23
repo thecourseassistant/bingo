@@ -64,18 +64,24 @@ export const GitHubPagesModal: React.FC<GitHubPagesModalProps> = ({ onClose }) =
               </li>
 
               <li className="space-y-1">
-                <span className="font-bold text-white">Fixing 404 Errors on GitHub Pages:</span>
+                <span className="font-bold text-white">Fixing a Blank White Screen on GitHub Pages:</span>
                 <p className="text-slate-300">
-                  A 404 error usually happens for two reasons:
+                  A blank white screen on GitHub Pages almost always happens because GitHub Pages is serving raw source files (like <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">/src/main.tsx</code>) instead of the compiled <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">dist/</code> build bundle.
                 </p>
-                <ul className="list-disc pl-4 space-y-1 mt-1 text-slate-400">
-                  <li>
-                    <strong className="text-white">Base path issue (assets not loading):</strong> We have configured <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">base: './'</code> in <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">vite.config.ts</code> so your repository relative links load correctly.
-                  </li>
-                  <li>
-                    <strong className="text-white">GitHub Pages subfolder:</strong> If your repo is at <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">https://username.github.io/repository-name/</code>, ensure GitHub Pages is publishing the contents of the built <code className="bg-slate-950 px-1 py-0.5 rounded text-amber-300 font-mono">dist/</code> directory (not the project root).
-                  </li>
-                </ul>
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2 mt-2 text-slate-300">
+                  <p className="font-bold text-indigo-300">Solution 1: Use GitHub Actions (Easiest & Automatic)</p>
+                  <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
+                    <li>Go to your GitHub Repository → <strong>Settings</strong> → <strong>Pages</strong>.</li>
+                    <li>Under <strong>Source</strong>, change the dropdown from "Deploy from a branch" to <strong>GitHub Actions</strong>.</li>
+                    <li>Because we created a <code className="text-emerald-400 font-mono">.github/workflows/deploy.yml</code> file in this repo, GitHub will automatically build and deploy your app every time you push!</li>
+                  </ol>
+                  
+                  <p className="font-bold text-indigo-300 pt-1">Solution 2: Deploy using gh-pages command</p>
+                  <ol className="list-decimal pl-4 space-y-1 text-[11px] text-slate-300">
+                    <li>In your local terminal, run: <code className="text-amber-300 font-mono">npm run deploy</code></li>
+                    <li>In GitHub Repo → <strong>Settings</strong> → <strong>Pages</strong>, set Source to <strong>Deploy from a branch</strong>, select branch <strong>gh-pages</strong>, folder <strong>/ (root)</strong>, and click <strong>Save</strong>.</li>
+                  </ol>
+                </div>
               </li>
             </ol>
           </div>
