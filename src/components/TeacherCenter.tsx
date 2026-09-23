@@ -6,7 +6,11 @@ import {
   FileSpreadsheet,
   Github,
   ArrowLeft,
-  Lock
+  Lock,
+  Share2,
+  Copy,
+  Check,
+  Link2
 } from 'lucide-react';
 
 interface TeacherCenterProps {
@@ -14,6 +18,7 @@ interface TeacherCenterProps {
   setCalledNumbers: React.Dispatch<React.SetStateAction<number[]>>;
   soundEnabled: boolean;
   scriptUrlConfigured: boolean;
+  scriptUrl?: string;
   onOpenVerifier: () => void;
   onOpenAppsScript: () => void;
   onOpenGithub: () => void;
@@ -25,11 +30,34 @@ export const TeacherCenter: React.FC<TeacherCenterProps> = ({
   setCalledNumbers,
   soundEnabled,
   scriptUrlConfigured,
+  scriptUrl = '',
   onOpenVerifier,
   onOpenAppsScript,
   onOpenGithub,
   onExitTeacherCenter,
 }) => {
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Generate Student Game Link with embedded Apps Script URL
+  const getStudentShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    if (scriptUrl && scriptUrl.trim() !== '') {
+      return `${origin}${pathname}?scriptUrl=${encodeURIComponent(scriptUrl.trim())}`;
+    }
+    return `${origin}${pathname}`;
+  };
+
+  const handleCopyLink = () => {
+    const link = getStudentShareUrl();
+    if (link) {
+      navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto px-2 sm:px-4 py-3 animate-fadeIn">
       {/* Teacher Top Bar */}
@@ -88,6 +116,47 @@ export const TeacherCenter: React.FC<TeacherCenterProps> = ({
             <Github className="w-4 h-4" />
           </button>
         </div>
+      </div>
+
+      {/* Share Student Game Link Banner */}
+      <div className="bg-gradient-to-r from-indigo-950/80 via-slate-900 to-purple-950/80 border border-indigo-500/30 p-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-indigo-300 font-extrabold text-xs sm:text-sm">
+            <Share2 className="w-4 h-4 text-indigo-400" />
+            <span>Student Game Link (Share With Class)</span>
+            {scriptUrlConfigured ? (
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                Google Sheet Linked
+              </span>
+            ) : (
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                No Sheet Linked Yet
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-300">
+            {scriptUrlConfigured
+              ? 'When students open this link on their phones/devices, their winning results automatically post to your Google Sheet!'
+              : 'Click "Google Sheet" above to attach your Google Sheet URL before sharing with students.'}
+          </p>
+        </div>
+
+        <button
+          onClick={handleCopyLink}
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/30 shrink-0"
+        >
+          {copiedLink ? (
+            <>
+              <Check className="w-4 h-4 text-emerald-300" />
+              <span>Link Copied!</span>
+            </>
+          ) : (
+            <>
+              <Link2 className="w-4 h-4" />
+              <span>Copy Student Link</span>
+            </>
+          )}
+        </button>
       </div>
 
       {/* Teacher Number Caller */}

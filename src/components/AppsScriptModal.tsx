@@ -10,7 +10,9 @@ import {
   X,
   AlertCircle,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Share2,
+  Link2
 } from 'lucide-react';
 
 interface AppsScriptModalProps {
@@ -25,8 +27,28 @@ export const AppsScriptModal: React.FC<AppsScriptModalProps> = ({
   onClose,
 }) => {
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState<string>('');
+
+  const getStudentShareUrl = () => {
+    if (typeof window === 'undefined') return '';
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    if (scriptUrl && scriptUrl.trim() !== '') {
+      return `${origin}${pathname}?scriptUrl=${encodeURIComponent(scriptUrl.trim())}`;
+    }
+    return `${origin}${pathname}`;
+  };
+
+  const handleCopyStudentLink = () => {
+    const link = getStudentShareUrl();
+    if (link) {
+      navigator.clipboard.writeText(link);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE);
@@ -147,6 +169,31 @@ export const AppsScriptModal: React.FC<AppsScriptModalProps> = ({
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
               )}
               <span>{testMessage}</span>
+            </div>
+          )}
+
+          {scriptUrl && scriptUrl.trim() !== '' && (
+            <div className="bg-indigo-950/60 border border-indigo-500/40 p-3.5 rounded-xl space-y-2 mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                  <Share2 className="w-4 h-4 text-indigo-400" /> Share Student Link (Auto-Connects Sheet)
+                </span>
+                <button
+                  onClick={handleCopyStudentLink}
+                  className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-lg flex items-center gap-1 transition-all"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Share this link with your students. Opening it automatically links their game to your Google Sheet!
+              </p>
+              <input
+                readOnly
+                value={getStudentShareUrl()}
+                className="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[11px] font-mono text-emerald-400 focus:outline-none"
+              />
             </div>
           )}
         </div>

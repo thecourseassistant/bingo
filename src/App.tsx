@@ -29,7 +29,11 @@ export default function App() {
     try {
       const params = new URLSearchParams(window.location.search);
       const urlFromQuery = params.get('scriptUrl');
-      if (urlFromQuery) return urlFromQuery;
+      if (urlFromQuery && urlFromQuery.trim() !== '') {
+        const clean = urlFromQuery.trim();
+        safeLocalStorage.setItem('bingo_script_url', clean);
+        return clean;
+      }
     } catch (e) {
       // ignore
     }
@@ -181,6 +185,7 @@ export default function App() {
             setCalledNumbers={setCalledNumbers}
             soundEnabled={false}
             scriptUrlConfigured={Boolean(scriptUrl && scriptUrl.trim() !== '')}
+            scriptUrl={scriptUrl}
             onOpenVerifier={() => setIsVerifierModalOpen(true)}
             onOpenAppsScript={() => setIsAppsScriptModalOpen(true)}
             onOpenGithub={() => setIsGithubModalOpen(true)}
