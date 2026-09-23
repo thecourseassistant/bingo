@@ -11,11 +11,12 @@ import { GitHubPagesModal } from './components/GitHubPagesModal';
 
 import { BoardConfig, BingoCell, WinResult } from './types';
 import { generateBoardCells } from './utils/bingoLogic';
+import { safeLocalStorage } from './utils/storage';
 
 export default function App() {
   // Student Flow Step: 'name' (Step 1: Enter Name) -> 'game' (Step 2: 4x4 Bingo Card)
   const [studentStep, setStudentStep] = useState<'name' | 'game'>(() => {
-    const savedName = localStorage.getItem('bingo_student_name');
+    const savedName = safeLocalStorage.getItem('bingo_student_name');
     return savedName && savedName.trim() !== '' ? 'game' : 'name';
   });
 
@@ -25,25 +26,37 @@ export default function App() {
 
   // Google Apps Script Web App URL
   const [scriptUrl, setScriptUrl] = useState<string>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlFromQuery = params.get('scriptUrl');
-    if (urlFromQuery) return urlFromQuery;
-    return localStorage.getItem('bingo_script_url') || '';
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlFromQuery = params.get('scriptUrl');
+      if (urlFromQuery) return urlFromQuery;
+    } catch (e) {
+      // ignore
+    }
+    return safeLocalStorage.getItem('bingo_script_url') || '';
   });
 
   // Student Identity
   const [studentName, setStudentName] = useState<string>(() => {
-    return localStorage.getItem('bingo_student_name') || '';
+    return safeLocalStorage.getItem('bingo_student_name') || '';
   });
   const [studentId, setStudentId] = useState<string>(() => {
-    return localStorage.getItem('bingo_student_id') || '';
+    return safeLocalStorage.getItem('bingo_student_id') || '';
   });
 
   // Helper to generate a unique random card seed per student
   const createStudentSeed = (name: string) => {
-    const randPart = typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID
-      ? window.crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase()
-      : Math.random().toString(36).substring(2, 10).toUpperCase();
+    let randPart = '';
+    try {
+      if (typeof window !== 'undefined' && window.crypto && typeof window.crypto.randomUUID === 'function') {
+        randPart = window.crypto.randomUUID().replace(/-/g, '').substring(0, 8).toUpperCase();
+      }
+    } catch (e) {
+      // fallback
+    }
+    if (!randPart) {
+      randPart = Math.random().toString(36).substring(2, 10).toUpperCase();
+    }
     const timePart = Date.now().toString(36).toUpperCase();
     const cleanName = (name || 'STUDENT').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     return `CARD-${cleanName.slice(0, 6)}-${timePart}-${randPart}`;
@@ -51,10 +64,10 @@ export default function App() {
 
   // Card Seed state
   const [cardSeed, setCardSeed] = useState<string>(() => {
-    const savedSeed = localStorage.getItem('bingo_card_seed');
+    const savedSeed = safeLocalStorage.getItem('bingo_card_seed');
     if (savedSeed && savedSeed.trim() !== '') return savedSeed;
-    const initialSeed = createStudentSeed(localStorage.getItem('bingo_student_name') || '');
-    localStorage.setItem('bingo_card_seed', initialSeed);
+    const initialSeed = createStudentSeed(safeLocalStorage.getItem('bingo_student_name') || '');
+    safeLocalStorage.setItem('bingo_card_seed', initialSeed);
     return initialSeed;
   });
 
@@ -72,7 +85,7 @@ export default function App() {
 
   // Bingo Cells (4x4)
   const [cells, setCells] = useState<BingoCell[]>(() => {
-    const savedCells = localStorage.getItem('bingo_board_cells');
+    const savedCells = safeLocalStorage.getItem('bingo_board_cells');
     if (savedCells) {
       try {
         const parsed = JSON.parse(savedCells);
@@ -84,14 +97,22 @@ export default function App() {
       }
     }
     const freshCells = generateBoardCells(4, 100, false, cardSeed);
-    localStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
+    safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
     return freshCells;
   });
 
   // Teacher Called Numbers List (1-100)
   const [calledNumbers, setCalledNumbers] = useState<number[]>(() => {
-    const saved = localStorage.getItem('bingo_called_numbers');
-    return saved ? JSON.parse(saved) : [];
+    const saved = safeLocalStorage.getItem('bingo_called_numbers');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [];
   });
 
   // Modals state
@@ -106,35 +127,35 @@ export default function App() {
 
   // Sync localStorage
   useEffect(() => {
-    localStorage.setItem('bingo_script_url', scriptUrl);
+    safeLocalStorage.setItem('bingo_script_url', scriptUrl);
   }, [scriptUrl]);
 
   useEffect(() => {
-    localStorage.setItem('bingo_student_name', studentName);
+    safeLocalStorage.setItem('bingo_student_name', studentName);
   }, [studentName]);
 
   useEffect(() => {
-    localStorage.setItem('bingo_student_id', studentId);
+    safeLocalStorage.setItem('bingo_student_id', studentId);
   }, [studentId]);
 
   useEffect(() => {
-    localStorage.setItem('bingo_called_numbers', JSON.stringify(calledNumbers));
+    safeLocalStorage.setItem('bingo_called_numbers', JSON.stringify(calledNumbers));
   }, [calledNumbers]);
 
   useEffect(() => {
-    localStorage.setItem('bingo_board_cells', JSON.stringify(cells));
+    safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(cells));
   }, [cells]);
 
   // Handle student starting the game from name entry page
   const handleStartGame = () => {
-    let currentSeed = localStorage.getItem('bingo_card_seed');
+    let currentSeed = safeLocalStorage.getItem('bingo_card_seed');
     if (!currentSeed) {
       currentSeed = createStudentSeed(studentName);
-      localStorage.setItem('bingo_card_seed', currentSeed);
+      safeLocalStorage.setItem('bingo_card_seed', currentSeed);
       setCardSeed(currentSeed);
       const freshCells = generateBoardCells(4, 100, false, currentSeed);
       setCells(freshCells);
-      localStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
+      safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
     }
     setStudentStep('game');
   };
