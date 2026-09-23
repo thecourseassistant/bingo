@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 interface VerifierModalProps {
-  calledNumbers: number[];
+  calledNumbers: (number | string)[];
   onClose: () => void;
 }
 
@@ -20,13 +20,11 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
 }) => {
   const [inputSeed, setInputSeed] = useState<string>('');
   const [inputCode, setInputCode] = useState<string>('');
-  const [gridSize, setGridSize] = useState<number>(5);
   const [verificationResult, setVerificationResult] = useState<{
     tested: boolean;
     isLegit: boolean;
     pattern: string;
-    matchedNumbers: number[];
-    missingNumbers: number[];
+    matchedNumbers: (number | string)[];
   } | null>(null);
 
   const handleVerify = () => {
@@ -35,24 +33,25 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
       return;
     }
 
-    // Reconstruct student card with seed
-    const boardCells = generateBoardCells(gridSize as 3 | 4 | 5, 100, true, inputSeed.trim());
+    // Try both numbers and letters mode reconstruction to verify
+    const lettersBoard = generateBoardCells(4, 100, false, inputSeed.trim(), 'letters');
+    const numbersBoard = generateBoardCells(4, 100, false, inputSeed.trim(), 'numbers');
 
-    // Mark cells that match called numbers
-    const markedCells = boardCells.map((cell) => {
-      if (cell.isFree) return { ...cell, isMarked: true };
-      const isCalled = typeof cell.value === 'number' && calledNumbers.includes(cell.value);
-      return { ...cell, isMarked: isCalled };
-    });
+    const markBoard = (cells: typeof lettersBoard) => cells.map((cell) => ({
+      ...cell,
+      isMarked: calledNumbers.includes(cell.value),
+    }));
 
-    const winCheck = checkWinCondition(markedCells, gridSize as 3 | 4 | 5);
+    const lettersWin = checkWinCondition(markBoard(lettersBoard), 4);
+    const numbersWin = checkWinCondition(markBoard(numbersBoard), 4);
+
+    const winCheck = lettersWin.hasWon ? lettersWin : numbersWin;
 
     setVerificationResult({
       tested: true,
       isLegit: winCheck.hasWon,
       pattern: winCheck.patternName,
-      matchedNumbers: winCheck.winningNumbers.filter((n) => typeof n === 'number') as number[],
-      missingNumbers: [],
+      matchedNumbers: winCheck.winningNumbers,
     });
   };
 
@@ -75,7 +74,7 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
           <div>
             <h2 className="text-xl font-bold">Teacher Claim Verifier</h2>
             <p className="text-xs text-slate-400">
-              Verify if a student's Bingo claim matches called numbers
+              Verify if a student's Bingo claim matches called items
             </p>
           </div>
         </div>
@@ -88,7 +87,7 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
             </label>
             <input
               type="text"
-              placeholder="e.g. CARD-8A92 or CLASS-SEED"
+              placeholder="e.g. CARD-STUDEN-172703-8A92"
               value={inputSeed}
               onChange={(e) => setInputSeed(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-emerald-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -106,19 +105,6 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
               onChange={(e) => setInputCode(e.target.value)}
               className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-xs font-mono text-slate-300 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs text-slate-400 font-medium">Grid Size:</span>
-            <select
-              value={gridSize}
-              onChange={(e) => setGridSize(Number(e.target.value))}
-              className="bg-slate-900 border border-slate-700 text-xs font-bold rounded-lg px-2.5 py-1 text-slate-200"
-            >
-              <option value={3}>3 x 3</option>
-              <option value={4}>4 x 4</option>
-              <option value={5}>5 x 5</option>
-            </select>
           </div>
 
           <button
@@ -156,13 +142,13 @@ export const VerifierModal: React.FC<VerifierModalProps> = ({
                   <strong>Winning Pattern:</strong> {verificationResult.pattern}
                 </p>
                 <p className="truncate">
-                  <strong>Winning Numbers Called:</strong>{' '}
+                  <strong>Winning Items Called:</strong>{' '}
                   {verificationResult.matchedNumbers.join(', ')}
                 </p>
               </div>
             ) : (
               <p className="text-xs text-rose-300">
-                This student card layout does NOT have a full line or winning pattern formed from the numbers currently called.
+                This student card layout does NOT have a full line formed from items called so far.
               </p>
             )}
           </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { playSound, speakNumber } from '../utils/bingoLogic';
+import { playSound, speakCallItem, ALPHABET_POOL } from '../utils/bingoLogic';
+import { BingoGameMode } from '../types';
 import {
   Sparkles,
   Play,
@@ -14,9 +15,10 @@ import {
 } from 'lucide-react';
 
 interface TeacherCallerProps {
-  calledNumbers: number[];
-  setCalledNumbers: React.Dispatch<React.SetStateAction<number[]>>;
+  calledNumbers: (number | string)[];
+  setCalledNumbers: React.Dispatch<React.SetStateAction<(number | string)[]>>;
   soundEnabled: boolean;
+  gameMode?: BingoGameMode;
   openVerifierModal: () => void;
 }
 
@@ -24,6 +26,7 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
   calledNumbers,
   setCalledNumbers,
   soundEnabled,
+  gameMode = 'numbers',
   openVerifierModal,
 }) => {
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(true);
@@ -32,44 +35,49 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
   const [timerCountdown, setTimerCountdown] = useState<number>(5);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  const maxNumber = 100;
-  const currentNumber = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
+  const isLetters = gameMode === 'letters';
+  const totalItems = isLetters ? 26 : 100;
+  const currentItem = calledNumbers.length > 0 ? calledNumbers[calledNumbers.length - 1] : null;
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Call Next Random Number
-  const drawNextNumber = () => {
-    // Determine remaining uncalled numbers in range 1..100
-    const remaining: number[] = [];
-    for (let i = 1; i <= maxNumber; i++) {
-      if (!calledNumbers.includes(i)) {
-        remaining.push(i);
+  // Call Next Random Item (Number or Letter)
+  const drawNextItem = () => {
+    let remaining: (number | string)[] = [];
+
+    if (isLetters) {
+      remaining = ALPHABET_POOL.filter((lettr) => !calledNumbers.includes(lettr));
+    } else {
+      for (let i = 1; i <= 100; i++) {
+        if (!calledNumbers.includes(i)) {
+          remaining.push(i);
+        }
       }
     }
 
     if (remaining.length === 0) {
-      alert('All 100 numbers have been called!');
+      alert(`All ${totalItems} ${isLetters ? 'letters' : 'numbers'} have been called!`);
       setAutoDraw(false);
       return;
     }
 
     const randomIndex = Math.floor(Math.random() * remaining.length);
-    const nextNum = remaining[randomIndex];
+    const nextItem = remaining[randomIndex];
 
-    setCalledNumbers((prev) => [...prev, nextNum]);
+    setCalledNumbers((prev) => [...prev, nextItem]);
 
     if (soundEnabled) {
       playSound('draw');
     }
 
     if (speechEnabled) {
-      speakNumber(nextNum);
+      speakCallItem(nextItem);
     }
   };
 
   // Reset Game
   const handleResetGame = () => {
-    if (window.confirm('Reset called numbers list and start a fresh Bingo game?')) {
+    if (window.confirm(`Reset called ${isLetters ? 'letters' : 'numbers'} list and start a fresh Bingo game?`)) {
       setCalledNumbers([]);
       setAutoDraw(false);
     }
@@ -88,7 +96,7 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
     timerRef.current = setInterval(() => {
       setTimerCountdown((prev) => {
         if (prev <= 1) {
-          return 0; // Trigger draw in separate effect
+          return 0;
         }
         return prev - 1;
       });
@@ -102,7 +110,7 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
   // Execute draw when timerCountdown hits 0
   useEffect(() => {
     if (autoDraw && timerCountdown === 0) {
-      drawNextNumber();
+      drawNextItem();
       setTimerCountdown(drawInterval);
     }
   }, [autoDraw, timerCountdown, drawInterval]);
@@ -115,18 +123,19 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
           {/* Current Callout Display Sphere */}
           <div className="flex flex-col items-center justify-center text-center">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Current Callout (1-100)
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Current Callout ({isLetters ? 'A-Z Alphabet' : '1-100 Numbers'})</span>
             </span>
 
             <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 p-1 shadow-2xl shadow-indigo-500/40 flex items-center justify-center">
               <div className="w-full h-full rounded-full bg-slate-950 flex flex-col items-center justify-center p-2 relative overflow-hidden">
-                {currentNumber !== null ? (
+                {currentItem !== null ? (
                   <>
                     <span className="text-5xl sm:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-amber-200 drop-shadow-lg font-display tracking-tight">
-                      {currentNumber}
+                      {currentItem}
                     </span>
                     <span className="text-[11px] font-semibold text-slate-400 mt-1 uppercase tracking-wider">
-                      Drawn #{calledNumbers.length}
+                      {isLetters ? `Letter ${currentItem}` : `Drawn #${calledNumbers.length}`}
                     </span>
                   </>
                 ) : (
@@ -143,12 +152,12 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Primary Call Button */}
               <button
-                onClick={drawNextNumber}
-                disabled={calledNumbers.length >= maxNumber}
+                onClick={drawNextItem}
+                disabled={calledNumbers.length >= totalItems}
                 className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:brightness-110 disabled:opacity-50 text-white font-extrabold text-base sm:text-lg tracking-wide shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all transform active:scale-95"
               >
                 <Sparkles className="w-5 h-5" />
-                <span>CALL NEXT NUMBER</span>
+                <span>CALL NEXT {isLetters ? 'LETTER' : 'NUMBER'}</span>
               </button>
 
               {/* Auto Draw Toggle */}
@@ -192,7 +201,7 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
                       ? 'bg-indigo-950/60 border-indigo-600/60 text-indigo-300'
                       : 'bg-slate-800 border-slate-700 text-slate-500'
                   }`}
-                  title="Toggle Voice Number Caller"
+                  title="Toggle Voice Caller"
                 >
                   {speechEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
                   <span>Voice Caller</span>
@@ -211,7 +220,7 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
                 <button
                   onClick={handleResetGame}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-rose-400 hover:bg-slate-700 text-xs font-medium transition-all"
-                  title="Reset Called Numbers"
+                  title="Reset Called Items"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Reset</span>
@@ -233,31 +242,31 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
             {calledNumbers
               .slice(-10)
               .reverse()
-              .map((num, idx) => (
+              .map((item, idx) => (
                 <span
-                  key={`recent-${num}-${idx}`}
+                  key={`recent-${item}-${idx}`}
                   className={`px-3 py-1 rounded-xl text-xs font-extrabold shrink-0 ${
                     idx === 0
                       ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-md animate-pulse'
                       : 'bg-slate-900 text-indigo-200 border border-slate-700'
                   }`}
                 >
-                  #{num}
+                  {isLetters ? `Letter ${item}` : `#${item}`}
                 </span>
               ))}
           </div>
         </div>
       )}
 
-      {/* Full 1-100 Master Called Numbers Grid */}
+      {/* Master Board */}
       <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-4 sm:p-5 shadow-xl space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <span>Caller Master Board (1–100)</span>
+              <span>Caller Master Board ({isLetters ? 'Alphabet A–Z' : 'Numbers 1–100'})</span>
             </h2>
             <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-              {calledNumbers.length} / {maxNumber} Called
+              {calledNumbers.length} / {totalItems} Called
             </span>
           </div>
 
@@ -282,26 +291,26 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
         </div>
 
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-10 gap-1 sm:gap-1.5 pt-1">
-            {Array.from({ length: maxNumber }, (_, i) => i + 1).map((num) => {
-              const isCalled = calledNumbers.includes(num);
-              const isLatest = currentNumber === num;
+          <div className={`grid ${isLetters ? 'grid-cols-6 sm:grid-cols-9' : 'grid-cols-10'} gap-1.5 pt-1`}>
+            {(isLetters ? ALPHABET_POOL : Array.from({ length: 100 }, (_, i) => i + 1)).map((item) => {
+              const isCalled = calledNumbers.includes(item);
+              const isLatest = currentItem === item;
 
               return (
                 <div
-                  key={`master-${num}`}
+                  key={`master-${item}`}
                   className={`
-                    aspect-square rounded-lg flex items-center justify-center font-bold text-xs sm:text-sm transition-all
+                    aspect-square rounded-xl flex items-center justify-center font-bold text-sm sm:text-base transition-all
                     ${
                       isLatest
-                        ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black scale-110 z-10 animate-bounce'
+                        ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 font-black scale-110 z-10 animate-bounce shadow-lg shadow-amber-400/40'
                         : isCalled
                         ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-sm'
                         : 'bg-slate-900/80 text-slate-500 border border-slate-800'
                     }
                   `}
                 >
-                  {num}
+                  {item}
                 </div>
               );
             })}
@@ -309,16 +318,18 @@ export const TeacherCaller: React.FC<TeacherCallerProps> = ({
         ) : (
           <div className="bg-slate-900 p-3 rounded-2xl border border-slate-800 min-h-32 max-h-60 overflow-y-auto">
             {calledNumbers.length === 0 ? (
-              <p className="text-slate-500 text-xs text-center py-6">No numbers called yet.</p>
+              <p className="text-slate-500 text-xs text-center py-6">
+                No {isLetters ? 'letters' : 'numbers'} called yet.
+              </p>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {calledNumbers.map((num, idx) => (
+                {calledNumbers.map((item, idx) => (
                   <span
-                    key={`called-order-${num}-${idx}`}
+                    key={`called-order-${item}-${idx}`}
                     className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold text-indigo-300"
                   >
                     <span className="text-[10px] text-slate-500">#{idx + 1}</span>
-                    <strong className="text-white text-sm">{num}</strong>
+                    <strong className="text-white text-sm">{item}</strong>
                   </span>
                 ))}
               </div>

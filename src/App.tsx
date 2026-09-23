@@ -9,7 +9,7 @@ import { AppsScriptModal } from './components/AppsScriptModal';
 import { VerifierModal } from './components/VerifierModal';
 import { GitHubPagesModal } from './components/GitHubPagesModal';
 
-import { BoardConfig, BingoCell, WinResult } from './types';
+import { BoardConfig, BingoCell, WinResult, BingoGameMode } from './types';
 import { generateBoardCells } from './utils/bingoLogic';
 import { safeLocalStorage } from './utils/storage';
 
@@ -23,6 +23,22 @@ export default function App() {
   // Teacher Center Mode (unlocked with passcode 147852)
   const [isTeacherCenterActive, setIsTeacherCenterActive] = useState<boolean>(false);
   const [showPasscodeModal, setShowPasscodeModal] = useState<boolean>(false);
+
+  // Game Mode: Numbers (1-100) or English Alphabet (A-Z)
+  const [gameMode, setGameMode] = useState<BingoGameMode>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const modeFromQuery = params.get('gameMode') as BingoGameMode | null;
+      if (modeFromQuery && (modeFromQuery === 'numbers' || modeFromQuery === 'letters')) {
+        safeLocalStorage.setItem('bingo_game_mode', modeFromQuery);
+        return modeFromQuery;
+      }
+    } catch (e) {
+      // ignore
+    }
+    const savedMode = safeLocalStorage.getItem('bingo_game_mode') as BingoGameMode | null;
+    return savedMode === 'letters' ? 'letters' : 'numbers';
+  });
 
   // Google Apps Script Web App URL
   const [scriptUrl, setScriptUrl] = useState<string>(() => {
@@ -85,12 +101,14 @@ export default function App() {
     dauberStyle: 'stamp-red',
     theme: 'cyber-indigo',
     winningPatternRequired: 'line',
+    gameMode: gameMode,
   };
 
   // Bingo Cells (4x4)
   const [cells, setCells] = useState<BingoCell[]>(() => {
     const savedCells = safeLocalStorage.getItem('bingo_board_cells');
-    if (savedCells) {
+    const savedMode = safeLocalStorage.getItem('bingo_game_mode');
+    if (savedCells && savedMode === gameMode) {
       try {
         const parsed = JSON.parse(savedCells);
         if (Array.isArray(parsed) && parsed.length === 16) {
@@ -100,13 +118,13 @@ export default function App() {
         // Fallback to fresh board
       }
     }
-    const freshCells = generateBoardCells(4, 100, false, cardSeed);
+    const freshCells = generateBoardCells(4, 100, false, cardSeed, gameMode);
     safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
     return freshCells;
   });
 
-  // Teacher Called Numbers List (1-100)
-  const [calledNumbers, setCalledNumbers] = useState<number[]>(() => {
+  // Teacher Called Items List (Numbers or Letters)
+  const [calledNumbers, setCalledNumbers] = useState<(number | string)[]>(() => {
     const saved = safeLocalStorage.getItem('bingo_called_numbers');
     if (saved) {
       try {
@@ -135,6 +153,10 @@ export default function App() {
   }, [scriptUrl]);
 
   useEffect(() => {
+    safeLocalStorage.setItem('bingo_game_mode', gameMode);
+  }, [gameMode]);
+
+  useEffect(() => {
     safeLocalStorage.setItem('bingo_student_name', studentName);
   }, [studentName]);
 
@@ -150,6 +172,17 @@ export default function App() {
     safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(cells));
   }, [cells]);
 
+  // Handle Mode Toggle in Teacher Center
+  const handleToggleGameMode = (newMode: BingoGameMode) => {
+    if (newMode === gameMode) return;
+    setGameMode(newMode);
+    safeLocalStorage.setItem('bingo_game_mode', newMode);
+    setCalledNumbers([]);
+    const freshCells = generateBoardCells(4, 100, false, cardSeed, newMode);
+    setCells(freshCells);
+    safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
+  };
+
   // Handle student starting the game from name entry page
   const handleStartGame = () => {
     let currentSeed = safeLocalStorage.getItem('bingo_card_seed');
@@ -157,10 +190,10 @@ export default function App() {
       currentSeed = createStudentSeed(studentName);
       safeLocalStorage.setItem('bingo_card_seed', currentSeed);
       setCardSeed(currentSeed);
-      const freshCells = generateBoardCells(4, 100, false, currentSeed);
-      setCells(freshCells);
-      safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
     }
+    const freshCells = generateBoardCells(4, 100, false, currentSeed, gameMode);
+    setCells(freshCells);
+    safeLocalStorage.setItem('bingo_board_cells', JSON.stringify(freshCells));
     setStudentStep('game');
   };
 
@@ -186,6 +219,8 @@ export default function App() {
             soundEnabled={false}
             scriptUrlConfigured={Boolean(scriptUrl && scriptUrl.trim() !== '')}
             scriptUrl={scriptUrl}
+            gameMode={gameMode}
+            onToggleGameMode={handleToggleGameMode}
             onOpenVerifier={() => setIsVerifierModalOpen(true)}
             onOpenAppsScript={() => setIsAppsScriptModalOpen(true)}
             onOpenGithub={() => setIsGithubModalOpen(true)}

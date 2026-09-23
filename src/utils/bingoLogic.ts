@@ -1,4 +1,12 @@
-import { BingoCell, GridSize, WinResult, SubmissionData } from '../types';
+import { BingoCell, GridSize, WinResult, SubmissionData, BingoGameMode } from '../types';
+
+/**
+ * English Alphabet letters pool A-Z
+ */
+export const ALPHABET_POOL = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+  'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+];
 
 /**
  * Seeded PRNG (Mulberry32) for deterministic card generation
@@ -28,48 +36,53 @@ function hashString(str: string): number {
 }
 
 /**
- * Generate unique random numbers between min and max (inclusive) for gridSize x gridSize table
+ * Generate unique random numbers (1-100) or letters (A-Z) for gridSize x gridSize table
  */
 export function generateBoardCells(
   gridSize: GridSize = 4,
   maxNumber: number = 100,
   includeFreeSpace: boolean = false,
-  seedStr?: string
+  seedStr?: string,
+  gameMode: BingoGameMode = 'numbers'
 ): BingoCell[] {
   const totalCells = gridSize * gridSize;
 
   const randomFunc = seedStr && seedStr.trim() !== ''
-    ? mulberry32(hashString(seedStr))
+    ? mulberry32(hashString(seedStr + ':' + gameMode))
     : Math.random;
 
-  // Generate pool of unique numbers [1..maxNumber]
-  const numberPool: number[] = [];
-  for (let i = 1; i <= maxNumber; i++) {
-    numberPool.push(i);
+  let pool: (number | string)[] = [];
+
+  if (gameMode === 'letters') {
+    pool = [...ALPHABET_POOL];
+  } else {
+    for (let i = 1; i <= maxNumber; i++) {
+      pool.push(i);
+    }
   }
 
   // Shuffle pool using Fisher-Yates
-  for (let i = numberPool.length - 1; i > 0; i--) {
+  for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(randomFunc() * (i + 1));
-    [numberPool[i], numberPool[j]] = [numberPool[j], numberPool[i]];
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
 
-  const selectedNumbers = numberPool.slice(0, totalCells);
+  const selectedItems = pool.slice(0, totalCells);
 
   const cells: BingoCell[] = [];
-  let numIdx = 0;
+  let itemIdx = 0;
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
       cells.push({
         id: `cell-${row}-${col}`,
-        value: selectedNumbers[numIdx],
+        value: selectedItems[itemIdx],
         isMarked: false,
         isFree: false,
         row,
         col,
       });
-      numIdx++;
+      itemIdx++;
     }
   }
 
@@ -194,7 +207,7 @@ export function checkWinCondition(
 }
 
 /**
- * Generate a verification code based on student name, seed, and marked numbers
+ * Generate a verification code based on student name, seed, and marked items
  */
 export function generateProofCode(
   studentName: string,
@@ -203,7 +216,7 @@ export function generateProofCode(
 ): string {
   const markedVals = cells
     .filter((c) => c.isMarked)
-    .map((c) => c.value)
+    .map((c) => String(c.value))
     .sort()
     .join('-');
 
@@ -213,7 +226,7 @@ export function generateProofCode(
 }
 
 /**
- * Audio Synthesizer using Web Audio API (No external sound assets needed)
+ * Audio Synthesizer using Web Audio API
  */
 let audioCtx: AudioContext | null = null;
 
@@ -258,7 +271,6 @@ export function playSound(type: 'daub' | 'unmarked' | 'win' | 'draw' | 'error') 
       osc.start(now);
       osc.stop(now + 0.08);
     } else if (type === 'win') {
-      // Fanfare arpeggio: C5 - E5 - G5 - C6
       const notes = [523.25, 659.25, 783.99, 1046.5];
       notes.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
@@ -304,14 +316,19 @@ export function playSound(type: 'daub' | 'unmarked' | 'win' | 'draw' | 'error') 
 }
 
 /**
- * Speak number using browser SpeechSynthesis
+ * Speak call item (number or letter) using browser SpeechSynthesis
  */
-export function speakNumber(num: number) {
+export function speakCallItem(item: number | string) {
   if (!('speechSynthesis' in window)) return;
 
   try {
     window.speechSynthesis.cancel();
-    const text = `Number ${num}`;
+    let text = '';
+    if (typeof item === 'string') {
+      text = `Letter ${item}`;
+    } else {
+      text = `Number ${item}`;
+    }
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.0;
     utterance.pitch = 1.1;
@@ -338,11 +355,10 @@ export async function submitResultToGoogleSheet(
   const cleanUrl = scriptUrl.trim();
 
   try {
-    // Try POST request with JSON
     const response = await fetch(cleanUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8', // Prevents CORS preflight block in Google Apps Script
+        'Content-Type': 'text/plain;charset=utf-8',
       },
       body: JSON.stringify(payload),
     });
@@ -355,7 +371,6 @@ export async function submitResultToGoogleSheet(
       return { success: true, message: 'Bingo verified & recorded to Google Sheet!' };
     }
 
-    // Fallback: try GET query params if POST was blocked by CORS
     const queryParams = new URLSearchParams({
       studentName: payload.studentName,
       studentId: payload.studentId || '',
@@ -364,6 +379,7 @@ export async function submitResultToGoogleSheet(
       proofCode: payload.proofCode,
       cardSeed: payload.cardSeed,
       gridSize: String(payload.gridSize),
+      gameMode: payload.gameMode || 'numbers',
     }).toString();
 
     const getUrl = `${cleanUrl}?${queryParams}`;
@@ -376,7 +392,6 @@ export async function submitResultToGoogleSheet(
   } catch (err: unknown) {
     console.warn('Primary fetch failed, attempting GET fallback...', err);
 
-    // Final attempt with GET mode: no-cors
     try {
       const queryParams = new URLSearchParams({
         studentName: payload.studentName,
@@ -386,6 +401,7 @@ export async function submitResultToGoogleSheet(
         proofCode: payload.proofCode,
         cardSeed: payload.cardSeed,
         gridSize: String(payload.gridSize),
+        gameMode: payload.gameMode || 'numbers',
       }).toString();
 
       await fetch(`${cleanUrl}?${queryParams}`, { mode: 'no-cors' });

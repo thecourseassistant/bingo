@@ -115,9 +115,18 @@ export const StudentCard: React.FC<StudentCardProps> = ({
             <User className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-extrabold text-white truncate leading-tight">
-              {studentName || 'Student'}
-            </h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-sm font-extrabold text-white truncate leading-tight">
+                {studentName || 'Student'}
+              </h2>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                config.gameMode === 'letters'
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                  : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40'
+              }`}>
+                {config.gameMode === 'letters' ? '🔤 Alphabet' : '🔢 Numbers'}
+              </span>
+            </div>
             {studentId && (
               <p className="text-[11px] text-slate-400 truncate">
                 {studentId}
